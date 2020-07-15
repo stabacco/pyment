@@ -30,12 +30,7 @@ def isin_alone(elems, line):
     :type line: str
 
     """
-    found = False
-    for e in elems:
-        if line.strip().lower() == e.lower():
-            found = True
-            break
-    return found
+    return any(line.strip().lower() == e.lower() for e in elems)
 
 
 def isin_start(elems, line):
@@ -45,13 +40,8 @@ def isin_start(elems, line):
     :type line: str
 
     """
-    found = False
     elems = [elems] if type(elems) is not list else elems
-    for e in elems:
-        if line.lstrip().lower().startswith(e):
-            found = True
-            break
-    return found
+    return any(line.lstrip().lower().startswith(e) for e in elems)
 
 
 def isin(elems, line):
@@ -61,12 +51,7 @@ def isin(elems, line):
     :type line: str
 
     """
-    found = False
-    for e in elems:
-        if e in line.lower():
-            found = True
-            break
-    return found
+    return any(e in line.lower() for e in elems)
 
 
 def get_leading_spaces(data):
@@ -802,9 +787,7 @@ class DocsTools(object):
         idx = -1
         li = self.get_group_key_line(data, key)
         if li != -1:
-            idx = 0
-            for line in data.splitlines()[:li]:
-                idx += len(line) + len('\n')
+            idx = sum(len(line) + len('\n') for line in data.splitlines()[:li])
         return idx
 
     def get_group_line(self, data):
@@ -831,9 +814,7 @@ class DocsTools(object):
         idx = -1
         li = self.get_group_line(data)
         if li != -1:
-            idx = 0
-            for line in data.splitlines()[:li]:
-                idx += len(line) + len('\n')
+            idx = sum(len(line) + len('\n') for line in data.splitlines()[:li])
         return idx
 
     def get_key_index(self, data, key, starting=True):
@@ -958,11 +939,7 @@ class DocsTools(object):
                         end += start
                 if self.style['in'] in ['params', 'unknown'] and end == -1:
                     p1, _ = self.get_raise_indexes(data[start:])
-                    if p1 >= 0:
-                        end = p1
-                    else:
-                        end = len(data)
-
+                    end = p1 if p1 >= 0 else len(data)
         return start, end
 
     def get_param_indexes(self, data):
@@ -1040,11 +1017,7 @@ class DocsTools(object):
                         end += start
                 if self.style['in'] in ['params', 'unknown'] and end == -1:
                     p1, _ = self.get_param_indexes(data[start:])
-                    if p1 >= 0:
-                        end = p1
-                    else:
-                        end = len(data)
-
+                    end = p1 if p1 >= 0 else len(data)
         return start, end
 
     def get_param_type_indexes(self, data, name=None, prev=None):
@@ -1329,10 +1302,7 @@ class DocString(object):
 
         """
         # TODO: retrieve return from element external code (in parameter)
-        if raw is None:
-            l = self.element['raw'].strip()
-        else:
-            l = raw.strip()
+        l = self.element['raw'].strip() if raw is None else raw.strip()
         is_class = False
         if l.startswith('def ') or l.startswith('class '):
             # retrieves the type
@@ -1393,25 +1363,19 @@ class DocString(object):
         elif self.dst.style['in'] == 'google':
             lines = data.splitlines()
             line_num = self.dst.googledoc.get_next_section_start_line(lines)
-            if line_num == -1:
-                idx = -1
-            else:
-                idx = len('\n'.join(lines[:line_num]))
+            idx = -1 if line_num == -1 else len('\n'.join(lines[:line_num]))
         elif self.dst.style['in'] == 'numpydoc':
             lines = data.splitlines()
             line_num = self.dst.numpydoc.get_next_section_start_line(lines)
-            if line_num == -1:
-                idx = -1
-            else:
-                idx = len('\n'.join(lines[:line_num]))
+            idx = -1 if line_num == -1 else len('\n'.join(lines[:line_num]))
         elif self.dst.style['in'] == 'unknown':
             idx = -1
         else:
             idx = self.dst.get_elem_index(data)
-        if idx == 0:
-            self.docs['in']['desc'] = ''
-        elif idx == -1:
+        if idx == -1:
             self.docs['in']['desc'] = data
+        elif idx == 0:
+            self.docs['in']['desc'] = ''
         else:
             self.docs['in']['desc'] = data[:idx]
 
@@ -1428,7 +1392,6 @@ class DocString(object):
                 line = data[i]
                 param = None
                 desc = ''
-                ptype = ''
                 m = re.match(r'^\W*(\w+)[\W\s]+(\w[\s\w]+)', line.strip())
                 if m:
                     param = m.group(1).strip()
@@ -1438,6 +1401,7 @@ class DocString(object):
                     if m:
                         param = m.group(1).strip()
                 if param:
+                    ptype = ''
                     self.docs['in']['params'].append((param, desc, ptype))
 
     def _extract_tagstyle_docs_params(self):
@@ -1674,12 +1638,13 @@ class DocString(object):
         """Sets the raises and descriptions"""
         # TODO: manage different in/out styles
         # manage setting if not mandatory for numpy but optional
-        if self.docs['in']['raises']:
-            if self.dst.style['out'] != 'numpydoc' or self.dst.style['in'] == 'numpydoc' or \
-                    (self.dst.style['out'] == 'numpydoc' and
-                     'raise' not in self.dst.numpydoc.get_excluded_sections()):
-                # list of parameters is like: (name, description)
-                self.docs['out']['raises'] = list(self.docs['in']['raises'])
+        if self.docs['in']['raises'] and (
+            self.dst.style['out'] != 'numpydoc'
+            or self.dst.style['in'] == 'numpydoc'
+            or 'raise' not in self.dst.numpydoc.get_excluded_sections()
+        ):
+            # list of parameters is like: (name, description)
+            self.docs['out']['raises'] = list(self.docs['in']['raises'])
 
     def _set_return(self):
         """Sets the return parameter with description and rtype if any"""
@@ -1727,9 +1692,13 @@ class DocString(object):
                     raw += ' ' + p[2]
                 raw += '\n'
                 raw += self.docs['out']['spaces'] + spaces + with_space(p[1]).strip()
-                if len(p) > 2:
-                    if 'default' not in p[1].lower() and len(p) > 3 and p[3] is not None:
-                        raw += ' (Default value = ' + str(p[3]) + ')'
+                if (
+                    len(p) > 2
+                    and 'default' not in p[1].lower()
+                    and len(p) > 3
+                    and p[3] is not None
+                ):
+                    raw += ' (Default value = ' + str(p[3]) + ')'
                 raw += '\n'
         elif self.dst.style['out'] == 'google':
             spaces = ' ' * 2
@@ -1745,13 +1714,15 @@ class DocString(object):
                         raw += ', optional'
                     raw += ')'
                 raw += ': ' + with_space(p[1]).strip()
-                if len(p) > 2:
-                    if 'default' not in p[1].lower() and len(p) > 3 and p[3] is not None:
-                        raw += ' (Default value = ' + str(p[3]) + ')'
+                if (
+                    len(p) > 2
+                    and 'default' not in p[1].lower()
+                    and len(p) > 3
+                    and p[3] is not None
+                ):
+                    raw += ' (Default value = ' + str(p[3]) + ')'
                 raw += '\n'
-        elif self.dst.style['out'] == 'groups':
-            pass
-        else:
+        elif self.dst.style['out'] != 'groups':
             with_space = lambda s: '\n'.join([self.docs['out']['spaces'] + l\
                                                     if i > 0 else l for i, l in enumerate(s.splitlines())])
             if len(self.docs['out']['params']):
@@ -1763,9 +1734,7 @@ class DocString(object):
                         if p[2] is not None and len(p[2]) > 0:
                             raw += '\n'
                             raw += self.docs['out']['spaces'] + self.dst.get_key('type', 'out') + ' ' + p[0] + sep + p[2]
-                        raw += '\n'
-                    else:
-                        raw += '\n'
+                    raw += '\n'
         return raw
 
     def _set_raw_raise(self, sep):
@@ -1807,9 +1776,7 @@ class DocString(object):
                                 raw += p[1].strip()
                             raw += '\n'
                     raw += '\n'
-        elif self.dst.style['out'] == 'groups':
-            pass
-        else:
+        elif self.dst.style['out'] != 'groups':
             with_space = lambda s: '\n'.join([self.docs['out']['spaces'] + l if i > 0 else l for i, l in enumerate(s.splitlines())])
             if len(self.docs['out']['raises']):
                 if not self.docs['out']['params'] and not self.docs['out']['return']:
@@ -1836,10 +1803,7 @@ class DocString(object):
             spaces = ' ' * 4
             with_space = lambda s: '\n'.join([self.docs['out']['spaces'] + spaces + l.lstrip() if i > 0 else l for i, l in enumerate(s.splitlines())])
             raw += self.dst.numpydoc.get_key_section_header('return', self.docs['out']['spaces'])
-            if self.docs['out']['rtype']:
-                rtype = self.docs['out']['rtype']
-            else:
-                rtype = 'type'
+            rtype = self.docs['out']['rtype'] if self.docs['out']['rtype'] else 'type'
             # case of several returns
             if type(self.docs['out']['return']) is list:
                 for ret_elem in self.docs['out']['return']:
@@ -1867,10 +1831,7 @@ class DocString(object):
                                                     l.lstrip() if i > 0 else\
                                                     l for i, l in enumerate(s.splitlines())])
             raw += self.dst.googledoc.get_key_section_header('return', self.docs['out']['spaces'])
-            if self.docs['out']['rtype']:
-                rtype = self.docs['out']['rtype']
-            else:
-                rtype = None
+            rtype = self.docs['out']['rtype'] if self.docs['out']['rtype'] else None
             # case of several returns
             if type(self.docs['out']['return']) is list:
                 for ret_elem in self.docs['out']['return']:
@@ -1895,9 +1856,7 @@ class DocString(object):
                     raw += with_space(self.docs['out']['return']).strip() + '\n'
                 else:
                     raw += self.docs['out']['spaces'] + spaces + with_space(self.docs['out']['return']).strip() + '\n'
-        elif self.dst.style['out'] == 'groups':
-            pass
-        else:
+        elif self.dst.style['out'] != 'groups':
             with_space = lambda s: '\n'.join([self.docs['out']['spaces'] + l if i > 0 else l for i, l in enumerate(s.splitlines())])
             if self.docs['out']['return']:
                 if not self.docs['out']['params']:
@@ -1918,12 +1877,17 @@ class DocString(object):
         # sets the description section
         raw = self.docs['out']['spaces'] + self.quotes
         desc = self.docs['out']['desc'].strip()
-        if not desc or not desc.count('\n'):
-            if not self.docs['out']['params'] and not self.docs['out']['return'] and not self.docs['out']['rtype'] and not self.docs['out']['raises']:
-                raw += desc if desc else self.trailing_space
-                raw += self.quotes
-                self.docs['out']['raw'] = raw.rstrip()
-                return
+        if (
+            (not desc or not desc.count('\n'))
+            and not self.docs['out']['params']
+            and not self.docs['out']['return']
+            and not self.docs['out']['rtype']
+            and not self.docs['out']['raises']
+        ):
+            raw += desc if desc else self.trailing_space
+            raw += self.quotes
+            self.docs['out']['raw'] = raw.rstrip()
+            return
         if not self.first_line:
             raw += '\n' + self.docs['out']['spaces']
         raw += with_space(self.docs['out']['desc']).strip() + '\n'
