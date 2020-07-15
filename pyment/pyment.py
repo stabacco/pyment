@@ -228,10 +228,7 @@ class PyComment(object):
         """
         if not self.parsed:
             self._parse()
-        lst = []
-        for e in self.docs_list:
-            lst.append(e['docs'].get_raw_docs())
-        return lst
+        return [e['docs'].get_raw_docs() for e in self.docs_list]
 
     def compute_before_after(self):
         """Compute the list of lines before and after the proposed docstring changes.

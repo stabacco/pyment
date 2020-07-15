@@ -321,14 +321,12 @@ class AppTests(unittest.TestCase):
 
         finally:
             if input_filename:
-                if input_file:
-                    if not input_file.closed:
-                        input_file.close()
+                if input_file and not input_file.closed:
+                    input_file.close()
                 os.remove(input_filename)
 
-            if not overwrite_mode:
-                if os.path.isfile(patch_filename):
-                    os.remove(patch_filename)
+            if not overwrite_mode and os.path.isfile(patch_filename):
+                os.remove(patch_filename)
 
     def testOverwriteFilesTheSame(self):
         # Test that the file is correct when the output is the same as the input.
